@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flask 数据库查询</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        .container {
+            margin: 20px;
+        }
+        .dropdown {
+            margin-bottom: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid black;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>数据库查询工具</h1>
+
+        <!-- 第一部分：下拉框 -->
+        <div class="dropdown">
+            <label for="database">选择数据库：</label>
+            <select id="database" name="database">
+                {% for db in databases %}
+                    <option value="{{ db }}">{{ db }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="dropdown">
+            <label for="table">选择表：</label>
+            <select id="table" name="table" disabled></select>
+        </div>
+
+        <div class="dropdown">
+            <label for="columns">选择列：</label>
+            <select id="columns" name="columns" multiple disabled></select>
+        </div>
+
+        <button id="query-btn" disabled>查询</button>
+
+        <!-- 第二部分：表格展示 -->
+        <h2>查询结果</h2>
+        <table id="result-table">
+            <thead>
+                <tr></tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <script>
+        $(document).ready(function () {
+            let selectedDatabase = null;
+            let selectedTable = null;
+            let selectedColumns = [];
+
+            // 加载表名
+            $('#database').change(function () {
+                selectedDatabase = $(this).val();
+                $('#table').empty().prop('disabled', true);
+                $('#columns').empty().prop('disabled', true);
+                $('#query-btn').prop('disabled', true);
+
+                if (selectedDatabase) {
+                    $.post('/get_tables', { database_name: selectedDatabase }, function (tables) {
+                        if (tables.length > 0) {
+                            tables.forEach(table => {
+                                $('#table').append(`<option value="${table}">${table}</option>`);
+                            });
+                            $('#table').prop('disabled', false);
+                        }
+                    });
+                }
+            });
+
+            // 加载列名
+            $('#table').change(function () {
+                selectedTable = $(this).val();
+                $('#columns').empty().prop('disabled', true);
+                $('#query-btn').prop('disabled', true);
+
+                if (selectedTable) {
+                    $.post('/get_columns', { database_name: selectedDatabase, table_name: selectedTable }, function (columns) {
+                        if (columns.length > 0) {
+                            columns.forEach(column => {
+                                $('#columns').append(`<option value="${column}">${column}</option>`);
+                            });
+                            $('#columns').prop('disabled', false);
+                        }
+                    });
+                }
+            });
+
+            // 启用查询按钮
+            $('#columns').change(function () {
+                selectedColumns = Array.from($('#columns').val());
+                if (selectedColumns.length > 0) {
+                    $('#query-btn').prop('disabled', false);
+                } else {
+                    $('#query-btn').prop('disabled', true);
+                }
+            });
+
+            // 执行查询
+            $('#query-btn').click(function () {
+                $.post('/query_data', {
+                    database_name: selectedDatabase,
+                    table_name: selectedTable,
+                    selected_columns: selectedColumns
+                }, function (data) {
+                    const tableHead = $('#result-table thead tr');
+                    const tableBody = $('#result-table tbody');
+                    tableHead.empty();
+                    tableBody.empty();
+
+                    if (data.length > 0) {
+                        // 添加表头
+                        Object.keys(data[0]).forEach(key => {
+                            tableHead.append(`<th>${key}</th>`);
+                        });
+
+                        // 添加表内容
+                        data.forEach(row => {
+                            const rowData = Object.values(row).map(value => `<td>${value}</td>`).join('');
+                            tableBody.append(`<tr>${rowData}</tr>`);
+                        });
+                    } else {
+                        tableHead.append('<th>No Data</th>');
+                        tableBody.append('<tr><td>No Data</td></tr>');
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
